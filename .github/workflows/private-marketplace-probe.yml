@@ -17,12 +17,19 @@ jobs:
 
       # 액션이 마켓플레이스를 자기가 clone 하므로, 그 clone 이 쓰는 git 자격증명을 미리 심는다.
       # MKT_TOKEN = michelo-marketplace 에 Contents:Read 만 가진 fine-grained PAT.
+      # 액션은 실행 직전에 http.https://github.com/.extraheader 로 자기 토큰을 심는다
+      # (로그: "Removing existing git authentication headers..."). 그 헤더가 URL 안의
+      # userinfo 자격증명을 이겨서 첫 시도는 403 이었다. git 은 http.<url>.* 를 최장 접두사로
+      # 매칭하므로, 마켓플레이스 레포에만 더 구체적인 extraheader 를 걸어 우선순위를 가져온다.
       - name: Configure git credential for the private marketplace
         env:
           MKT_TOKEN: ${{ secrets.MKT_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${MKT_TOKEN}@github.com/portal301/".insteadOf "https://github.com/portal301/"
-          echo "configured (portal301 only)"
+          auth=$(printf 'x-access-token:%s' "$MKT_TOKEN" | base64 -w0)
+          git config --global "http.https://github.com/portal301/michelo-marketplace.extraheader" "AUTHORIZATION: basic $auth"
+          git config --global "http.https://github.com/portal301/michelo-marketplace.git.extraheader" "AUTHORIZATION: basic $auth"
+          echo "configured (marketplace repo only)"
+          git config --global --get-regexp 'http\..*extraheader' | sed 's/AUTHORIZATION.*/AUTHORIZATION: <redacted>/'
 
       - name: Probe private marketplace
         id: probe
