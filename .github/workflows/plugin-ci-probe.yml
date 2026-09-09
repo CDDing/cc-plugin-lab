@@ -29,31 +29,16 @@ jobs:
           plugins: "polyrepo-review@cc-plugin-lab"
           prompt: "/polyrepo-review:cr PR-1234"
           claude_args: '--model sonnet --allowedTools "Read,Bash,Glob,Agent"'
-          # 프로브 결과를 Actions 로그에서 직접 읽기 위해 리포트 출력을 켠다.
-          display_report: "true"
 
       # display_report 는 job summary 로만 나가서 로그 grep 이 안 된다.
-      # 액션이 내주는 execution_file(전체 메시지 JSON)을 직접 덤프해 결과를 읽는다.
+      # 액션이 내주는 execution_file(전체 메시지 JSON)을 jq 로 덤프해 결과를 읽는다.
       - name: Dump probe output
         if: always()
         run: |
           f="${{ steps.probe.outputs.execution_file }}"
           echo "execution_file=$f"
-          if [ -f "$f" ]; then
-            echo "--- assistant text ---"
-            python3 -c "
-import json,sys
-d=json.load(open('$f'))
-msgs=d if isinstance(d,list) else d.get('messages',[])
-for m in msgs:
-    if m.get('type')=='assistant':
-        for c in m.get('message',{}).get('content',[]):
-            if c.get('type')=='text':
-                print(c['text'])
-    if m.get('type')=='result':
-        print('--- result ---')
-        print(m.get('result',''))
-"
-          else
-            echo "no execution file"
-          fi
+          if [ ! -f "$f" ]; then echo "no execution file"; exit 0; fi
+          echo "--- assistant text ---"
+          jq -r '.[] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' "$f" || true
+          echo "--- result ---"
+          jq -r '.[] | select(.type=="result") | .result' "$f" || true
