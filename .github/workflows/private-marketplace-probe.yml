@@ -1,0 +1,50 @@
+name: private-marketplace-probe
+
+# 목적: claude-code-action 이 private 마켓플레이스(portal301/michelo-marketplace)를
+# clone/install 할 수 있는지 검증한다. 공식 문서에 CI 인증 가이드가 없어서(gh auth setup-git 은
+# 대화형) 액션 실행 전에 git credential 을 심는 방식이 실제로 통하는지 확인하는 것이 목적.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # 액션이 마켓플레이스를 자기가 clone 하므로, 그 clone 이 쓰는 git 자격증명을 미리 심는다.
+      # MKT_TOKEN = michelo-marketplace 에 Contents:Read 만 가진 fine-grained PAT.
+      - name: Configure git credential for the private marketplace
+        env:
+          MKT_TOKEN: ${{ secrets.MKT_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${MKT_TOKEN}@github.com/portal301/".insteadOf "https://github.com/portal301/"
+          echo "configured (portal301 only)"
+
+      - name: Probe private marketplace
+        id: probe
+        uses: anthropics/claude-code-action@v1.0.201
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/portal301/michelo-marketplace.git"
+          plugins: "frontend-architecture@michelo-marketplace"
+          prompt: |
+            아래 3개만 수행하고 결과를 `KEY = VALUE` 로 한 줄씩 출력한다. 실패는 `KEY = FAIL: <이유>`.
+            그 외 설명·요약·서론은 쓰지 않는다. 레포 코드는 읽지 않는다.
+
+            1. `MARKETPLACES` — Bash 로 `ls ~/.claude/plugins/marketplaces` 결과를 한 줄로.
+            2. `INSTALLED` — Bash 로 `ls -d ~/.claude/plugins/cache/*/*/* 2>/dev/null` 결과를 한 줄로.
+            3. `PLUGIN_TREE` — Bash 로 설치된 frontend-architecture 플러그인 디렉토리의 최상위 목록을 한 줄로.
+          claude_args: '--model sonnet --allowedTools "Bash,Read,Glob"'
+
+      - name: Dump probe output
+        if: always()
+        run: |
+          f="${{ steps.probe.outputs.execution_file }}"
+          echo "execution_file=$f"
+          if [ ! -f "$f" ]; then echo "no execution file"; exit 0; fi
+          echo "--- result ---"
+          jq -r '.[] | select(.type=="result") | .result' "$f" || true
