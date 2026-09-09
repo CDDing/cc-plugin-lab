@@ -28,3 +28,5 @@ jobs:
           plugins: "polyrepo-review@cc-plugin-lab"
           prompt: "/polyrepo-review:cr PR-1234"
           claude_args: '--model sonnet --allowedTools "Read,Bash,Glob,Agent"'
+          # 프로브 결과를 Actions 로그에서 직접 읽기 위해 리포트 출력을 켠다.
+          display_report: "true"
