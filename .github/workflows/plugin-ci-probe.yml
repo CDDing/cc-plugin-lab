@@ -2,13 +2,10 @@ name: plugin-ci-probe
 
 # 목적: claude-code-action 안에서 마켓플레이스 플러그인의 슬래시 커맨드가 동작하는지,
 # 그리고 그 플러그인이 체크아웃된 레포의 AGENTS.md / .claude/rules/ 를 읽을 수 있는지 검증한다.
+# claude-code-action 은 push 이벤트를 지원하지 않는다 ("Unsupported event type: push").
+# PR 없이 돌리려면 workflow_dispatch 가 유일한 수단이다.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/plugin-ci-probe.yml"
-      - "plugins/**"
 
 jobs:
   probe:
