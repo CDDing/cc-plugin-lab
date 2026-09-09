@@ -1,0 +1,55 @@
+name: private-marketplace-direct
+
+# plugin_marketplaces 에 private 레포 URL 을 직접 주고, 액션이 그걸 clone 할 수 있는지 본다.
+# 앞선 403 두 번은 권한 없는 PAT 로 낸 결과라 무효였다. 유효 토큰으로 재검증한다.
+#
+# 액션은 실행 직전 http.https://github.com/.extraheader 로 자기 토큰을 심으므로
+# ("Removing existing git authentication headers..."), 그걸 이기는지 확인하기 위해
+# url.insteadOf 와 레포 전용 extraheader 를 함께 걸어둔다.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject git credential for the private marketplace
+        env:
+          MKT_TOKEN: ${{ secrets.MKT_TOKEN }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$MKT_TOKEN" | base64 -w0)
+          git config --global "http.https://github.com/portal301/michelo-marketplace.extraheader" "AUTHORIZATION: basic $auth"
+          git config --global "http.https://github.com/portal301/michelo-marketplace.git.extraheader" "AUTHORIZATION: basic $auth"
+          git config --global url."https://x-access-token:${MKT_TOKEN}@github.com/portal301/".insteadOf "https://github.com/portal301/"
+          echo "--- 자격증명이 실제로 통하는지 먼저 직접 clone 으로 확인 ---"
+          git clone --depth 1 -q https://github.com/portal301/michelo-marketplace.git /tmp/mkt-selftest && echo "SELFTEST_CLONE = OK" || echo "SELFTEST_CLONE = FAIL"
+          ls /tmp/mkt-selftest/plugins 2>/dev/null | head -5
+
+      - name: Probe private marketplace via plugin_marketplaces
+        id: probe
+        uses: anthropics/claude-code-action@v1.0.201
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/portal301/michelo-marketplace.git"
+          plugins: "frontend-architecture@michelo-marketplace"
+          prompt: |
+            아래 2개만 수행하고 `KEY = VALUE` 로 한 줄씩 출력한다. 실패는 `KEY = FAIL: <이유>`.
+            그 외 설명은 쓰지 않는다. 레포 코드는 읽지 않는다.
+
+            1. `MARKETPLACES` — Bash 로 `ls ~/.claude/plugins/marketplaces` 결과를 한 줄로.
+            2. `INSTALLED` — Bash 로 `ls -d ~/.claude/plugins/cache/*/*/*` 결과를 한 줄로.
+          claude_args: '--model sonnet --allowedTools "Bash"'
+
+      - name: Dump probe output
+        if: always()
+        run: |
+          f="${{ steps.probe.outputs.execution_file }}"
+          echo "execution_file=$f"
+          if [ ! -f "$f" ]; then echo "no execution file"; exit 0; fi
+          echo "--- result ---"
+          jq -r '.[] | select(.type=="result") | .result' "$f" || true
