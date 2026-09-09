@@ -1,0 +1,36 @@
+name: pat-check
+
+# MKT_TOKEN 이 portal301/michelo-marketplace 를 실제로 읽을 수 있는지만 확인한다.
+# 토큰 값은 출력하지 않고 HTTP 상태코드와 응답 message 만 찍는다.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PAT visibility
+        env:
+          MKT_TOKEN: ${{ secrets.MKT_TOKEN }}
+        run: |
+          echo "token length: ${#MKT_TOKEN}"
+          echo "token prefix: ${MKT_TOKEN:0:11}..."
+
+          code=$(curl -s -o /tmp/repo.json -w '%{http_code}' \
+            -H "Authorization: Bearer $MKT_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/portal301/michelo-marketplace)
+          echo "GET /repos/portal301/michelo-marketplace -> $code"
+          jq -r '.full_name // .message' /tmp/repo.json 2>/dev/null || head -c 200 /tmp/repo.json
+
+          code=$(curl -s -o /tmp/user.json -w '%{http_code}' \
+            -H "Authorization: Bearer $MKT_TOKEN" \
+            https://api.github.com/user)
+          echo "GET /user -> $code"
+          jq -r '.login // .message' /tmp/user.json 2>/dev/null || head -c 200 /tmp/user.json
+
+          code=$(curl -s -o /tmp/inst.json -w '%{http_code}' \
+            -H "Authorization: Bearer $MKT_TOKEN" \
+            https://api.github.com/user/repos?per_page=5)
+          echo "GET /user/repos -> $code"
+          jq -r 'if type=="array" then (.[].full_name) else .message end' /tmp/inst.json 2>/dev/null || head -c 200 /tmp/inst.json
