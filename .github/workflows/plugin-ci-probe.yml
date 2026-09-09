@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run plugin probe
+        id: probe
         # v1.0.201 핀: v1.0.202 가 싣고 온 Claude Code 의 native installer 가 ~/.local/bin 을
         # 만들지 못한 채 exit 0 을 반환해 액션이 죽는 알려진 이슈를 피한다.
         # plugin_marketplaces / plugins 입력은 이 버전에도 존재한다 (action.yml:160-167).
@@ -30,3 +31,29 @@ jobs:
           claude_args: '--model sonnet --allowedTools "Read,Bash,Glob,Agent"'
           # 프로브 결과를 Actions 로그에서 직접 읽기 위해 리포트 출력을 켠다.
           display_report: "true"
+
+      # display_report 는 job summary 로만 나가서 로그 grep 이 안 된다.
+      # 액션이 내주는 execution_file(전체 메시지 JSON)을 직접 덤프해 결과를 읽는다.
+      - name: Dump probe output
+        if: always()
+        run: |
+          f="${{ steps.probe.outputs.execution_file }}"
+          echo "execution_file=$f"
+          if [ -f "$f" ]; then
+            echo "--- assistant text ---"
+            python3 -c "
+import json,sys
+d=json.load(open('$f'))
+msgs=d if isinstance(d,list) else d.get('messages',[])
+for m in msgs:
+    if m.get('type')=='assistant':
+        for c in m.get('message',{}).get('content',[]):
+            if c.get('type')=='text':
+                print(c['text'])
+    if m.get('type')=='result':
+        print('--- result ---')
+        print(m.get('result',''))
+"
+          else
+            echo "no execution file"
+          fi
