@@ -1,0 +1,16 @@
+{
+  "name": "cc-plugin-lab",
+  "owner": { "name": "CDDing" },
+  "metadata": {
+    "description": "Lab marketplace for validating shared review plugins across repos",
+    "version": "0.0.1"
+  },
+  "plugins": [
+    {
+      "name": "polyrepo-review",
+      "source": "./plugins/polyrepo-review",
+      "description": "Shared multi-agent PR review core reused by several repos",
+      "version": "0.0.1"
+    }
+  ]
+}

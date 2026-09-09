@@ -1,0 +1,7 @@
+{
+  "name": "polyrepo-review",
+  "description": "Shared multi-agent PR review core: common skeleton in the plugin, per-repo rules read from the host repo",
+  "version": "0.0.1",
+  "author": { "name": "CDDing" },
+  "keywords": ["code-review", "multi-agent", "monorepo", "polyrepo"]
+}
