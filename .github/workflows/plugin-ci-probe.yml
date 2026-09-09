@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # id-token: write 없으면 액션이 OIDC 토큰을 못 받아 3회 재시도 후 실패한다.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
